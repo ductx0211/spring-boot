@@ -1,23 +1,78 @@
-# spring-boot
-List of Spring Boot Tutorials
+import { Directive, ElementRef, HostListener, Input, forwardRef } from '@angular/core';
+import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
+import BigNumber from 'bignumber.js';
 
-[![N|Solid](https://javabydeveloper.com/wp-content/uploads/2017/08/Untitled-5.png)](https://javabydeveloper.com/category/spring-boot/)
+@Directive({
+  selector: '[appCurrencyInput]',
+  providers: [
+    {
+      provide: NG_VALUE_ACCESSOR,
+      useExisting: forwardRef(() => CurrencyInputDirective), // Tránh vòng lặp
+      multi: true,
+    },
+  ],
+})
+export class CurrencyInputDirective implements ControlValueAccessor {
+  @Input() decimalPlaces: number = 2; // Số thập phân
+  @Input() currencySymbol: string = '$'; // Ký hiệu tiền tệ
 
-## Examples
-## [1. Spring boot 2 hello world example](https://javabydeveloper.com/spring-boot-hello-world-example-rest/)
-The [spring-boot-helloworld] sample demonstrates the bare minimum configuration for getting started with Spring boot 2 with maven examples with basic REST controller.
+  private rawValue: string = ''; // Giá trị thực tế không định dạng
+  private onChange: (value: any) => void = () => {};
+  private onTouched: () => void = () => {};
 
-## [2. Test Spring boot components with Junit 5](https://javabydeveloper.com/spring-boot-junit-5-test-example/)
-The [Spring-boot-junit5-test-example] example to integrate Spring boot 2 and Junit 5 with Maven and writing tests to test the Spring components and a simple REST controller.
+  constructor(private el: ElementRef) {}
 
-## [3. Spring boot email templete with Thymeleaf](https://javabydeveloper.com/spring-boot-email-template/)
-The [junit5-displayNames-example] Example to send an email using Spring boot 2 + gmail SMTP + Thymeleaf html template with an attachment and inline image.
+  @HostListener('input', ['$event.target.value'])
+  onInput(value: string): void {
+    // Xử lý khi người dùng nhập dữ liệu vào
+    this.rawValue = this.unformatCurrency(value);
+    this.el.nativeElement.value = this.rawValue; // Hiển thị giá trị chưa định dạng khi nhập
+    this.onChange(this.rawValue); // Gửi giá trị thực tế cho FormControl
+  }
 
-## [4. Lombok Spring Boot Example](https://javabydeveloper.com/lombok-spring-boot-example/)
-An example to start working with Lombok and Spring boot together.
+  @HostListener('blur')
+  onBlur(): void {
+    // Khi mất focus, hiển thị giá trị đã định dạng
+    this.el.nativeElement.value = this.formatCurrency(this.rawValue);
+    this.onTouched();
+  }
 
-## [5. Spring Boot H2 in-memory Example](https://javabydeveloper.com/spring-boot-h2-in-memory-database-example/)
-An example with Spring Boot + H2 + JPA example.
+  @HostListener('focus')
+  onFocus(): void {
+    // Khi focus vào input, hiển thị giá trị thực tế
+    this.el.nativeElement.value = this.rawValue;
+  }
 
-## [6. Deploy Spring Boot application in docker](https://javabydeveloper.com/deploy-spring-boot-application-in-docker-quick-guide/)
-A quick guide on how to deploy Spring Boot Application in Docker.
+  writeValue(value: any): void {
+    // Khi giá trị được gán cho form control từ bên ngoài
+    this.rawValue = value || '';
+    this.el.nativeElement.value = this.formatCurrency(this.rawValue);
+  }
+
+  registerOnChange(fn: any): void {
+    this.onChange = fn;
+  }
+
+  registerOnTouched(fn: any): void {
+    this.onTouched = fn;
+  }
+
+  private formatCurrency(value: string | number): string {
+    if (!value) return '';
+
+    const bigNumberValue = new BigNumber(value);
+    const formattedValue = bigNumberValue.toFixed(this.decimalPlaces);
+
+    const parts = formattedValue.split('.');
+    let integerPart = parts[0];
+    const decimalPart = parts[1] || '00';
+    integerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ','); // Thêm dấu phân cách hàng nghìn
+
+    return `${this.currencySymbol}${integerPart}.${decimalPart}`;
+  }
+
+  private unformatCurrency(value: string): string {
+    // Loại bỏ các ký tự không hợp lệ
+    return value.replace(/[^\d.-]/g, '');
+  }
+}
